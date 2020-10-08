@@ -1,0 +1,124 @@
+--                                                  STORED PROCEDURES - yocompro
+
+
+--                                                  7 de Octubre, 2020
+
+-- Procedimiento almacenado para traer los datos del header por tienda, nuevos y en proceso. 
+-- Stored procedure to fetch the header data by store, new and in process.
+
+delimiter //
+create procedure new_order_header_by_store(in idStore int)
+begin
+	select od.id as _id, od.unique_order_id as order_code, od.created_at as order_creation_date, od.created_at as order_aceptation_date,
+		od.updated_at as order_done_date,
+		(select ad.created_at from accept_deliveries ad where ad.order_id = od.id) as order_checkout_date,
+		(select ad.updated_at from accept_deliveries ad where ad.order_id = od.id) as order_delivery_date,
+		(select name from orderstatuses ost where ost.id = od.orderstatus_id) as order_status_name, 
+		od.user_id as order_customer_id, (select us.name from users us where us.id = od.user_id) as user_fullname
+	from orders od
+	where (od.restaurant_id = idStore and od.orderstatus_id < 3);
+end
+//
+
+delimiter ;
+
+
+-- Procedimiento almacenado para traer los datos del header por tienda, finalizados, por entregar, o entregados. 
+-- Stored procedure to fetch the header data by store, completed, to be delivered, or delivered.
+delimiter //
+create procedure order_header_by_store_record(in idStore int)
+begin
+	select od.id as _id, od.unique_order_id as order_code, od.created_at as order_creation_date, od.created_at as order_aceptation_date,
+		od.updated_at as order_done_date,
+		(select ad.created_at from accept_deliveries ad where ad.order_id = od.id) as order_checkout_date,
+		(select ad.updated_at from accept_deliveries ad where ad.order_id = od.id) as order_delivery_date,
+		(select name from orderstatuses ost where ost.id = od.orderstatus_id) as order_status_name, 
+		od.user_id as order_customer_id, (select us.name from users us where us.id = od.user_id) as user_fullname
+	from orders od
+	where od.restaurant_id = idStore and (od.orderstatus_id > 2 and od.orderstatus_id < 6)
+	order by od.id desc 
+	limit 25;
+end
+//
+
+delimiter ;
+
+
+-- THIS STORED PROCEDURE IS TO CHANGE THE STATUS OF THE ORDER FROM "ORDER PLACED" TO "ORDER ACCEPTED"
+delimiter //
+create procedure change_header_status_to_accepted(in idOrder int)
+begin
+	declare previous_state int;
+	select orderstatus_id into previous_state from orders where id = idOrder;
+
+	if previous_state = 1 then
+		begin
+			update orders set orderstatus_id = 2, created_at = (select now()) where id = idOrder;
+		end;
+	end if;
+end
+//
+delimiter ;
+
+
+-- THIS STORED PROCEDURE IS TO CHANGE THE STATUS OF THE ORDER FROM "ORDER ACCEPTED" TO "DELIVERY ASSIGNED"
+delimiter //
+create procedure change_header_status_to_delivery_assigned(in idOrder int)
+begin
+	declare previous_state int;
+	select orderstatus_id into previous_state from orders where id = idOrder;
+
+	if previous_state = 2 then
+		begin
+			update orders set orderstatus_id = 3, updated_at = (select now()) where id = idOrder;
+		end;
+	end if;
+end
+//
+delimiter ;
+
+
+
+-- THIS STORED PROCEDURE IS TO CHANGE THE STATUS OF THE ORDER FROM "DELIVERY ASSIGNED" TO "PICKED UP"
+delimiter //
+create procedure change_header_status_to_picked_up(in idOrder int, in userId int, in customerId int)
+begin
+	declare previous_state int;
+	select orderstatus_id into previous_state from orders where id = idOrder;
+
+	if previous_state = 3 then
+		begin
+			insert into accept_deliveries (order_id, user_id, customer_id, is_complete, created_at, updated_at)
+			values
+			(idOrder, userId, customerId, 0, (select now()), null);
+		
+			update orders set orderstatus_id = 4 where id = idOrder;
+		end;
+	end if;
+end
+//
+delimiter ;
+
+
+
+
+-- THIS STORED PROCEDURE IS TO CHANGE THE STATUS OF THE ORDER FROM "PICKED UP" TO "COMPLETED"
+delimiter //
+create procedure change_header_status_to_completed(in idOrder int)
+begin
+	declare previous_state int;
+	select orderstatus_id into previous_state from orders where id = idOrder;
+
+	if previous_state = 4 then
+		begin
+			update accept_deliveries set is_complete = 1, updated_at = (select now()) where order_id = idOrder;
+			
+			update orders set orderstatus_id = 5 where id = idOrder;
+		end;
+	end if;
+end
+//
+delimiter ;
+
+
+
