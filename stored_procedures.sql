@@ -121,4 +121,17 @@ end
 delimiter ;
 
 
+-- 					Octubre 8th, 2020
+
+-- THIS STORED PROCEDURE FETCH THE SETTINGS DATA...
+delimiter //
+create procedure fetchDataSettings()
+begin
+	select id, s.key, value from settings s 
+	where (s.key = 'storeColor' or s.key = 'loginLoginTitle' or s.key = 'loginLoginEmailLabel' or s.key = 'loginLoginPasswordLabel'
+		or s.key = 'emailPassDonotMatch');	
+end
+//
+delimiter ;
+
 
