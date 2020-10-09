@@ -20,6 +20,7 @@ app.use((req, res, next) => {
 //Routes
 app.use('/order_header', require('./routes/orders/order_header'));
 app.use('/settings', require('./routes/settings'));
+app.use('/restaurant', require('./routes/restaurant'));
 // app.use('/services', require('./routes/services'));
 // app.use('/account', require('./routes/account'));
 // app.use('/manage_store_tokens', require('./routes/manage_store_tokens'));
