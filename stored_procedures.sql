@@ -151,3 +151,65 @@ begin
 end
 //
 delimiter ;
+
+
+-- 																Octubre 12, 2020
+
+-- THIS STORED PROCEDURE FETCH THE NEW AND ACCEPTED ORDERS DATA, FILTERED BY RESTAURANT ID.
+delimiter //
+create procedure open_orders(in idStore int)
+begin
+	select od.id as _id, (select os.name from orderstatuses os where os.id = od.orderstatus_id) as order_current_status,
+		od.created_at as order_creation_date, (select us.name from users us where us.id = od.user_id) as user_fullname
+	from orders od
+	where (od.orderstatus_id < 3 and od.restaurant_id = idStore)
+	order by od.id asc;
+end
+//
+delimiter ;
+
+
+-- THIS STORED PROCEDURE FETCH THE RECORD ORDERS DATA, FILTERED BY RESTAURANT ID.
+delimiter //
+create procedure record_orders(in idStore int)
+begin
+	select * from (select od.id as _id, (select os.name from orderstatuses os where os.id = od.orderstatus_id) as order_current_status,
+		od.updated_at as order_delivery_assigned_date, (select us.name from users us where us.id = od.user_id) as user_fullname,
+		(select ad.created_at from accept_deliveries ad where ad.order_id = od.id) as picked_up_date,
+		(select ad2.updated_at from accept_deliveries ad2 where ad2.order_id = od.id) as completed_date
+	from orders od
+	where (od.orderstatus_id > 2 and od.orderstatus_id < 6) and (od.restaurant_id = idStore)
+	order by od.id desc
+	limit 25) as allData order by allData._id asc;
+end
+//
+delimiter ;
+
+
+-- THIS STORED PROCEDURE IS TO FETCH THE DETAIL OF A NEW ORDER...
+delimiter //
+create procedure detail_new_order(in idOrder int)
+begin
+	select od.id as _id, od.unique_order_id as order_code,
+		(select us.name from users us where us.id = od.user_id) as user_fullname,
+		(select a.address from addresses a
+			where a.id = (select usr.default_address_id from users usr where usr.id = od.user_id)) as address_name,
+		od.created_at as order_acceptation_date, od.updated_at as order_delivery_assigned_date,
+		(select ad.created_at from accept_deliveries ad where ad.order_id = od.id) as picked_up_date,
+		(select ad2.updated_at from accept_deliveries ad2 where ad2.order_id = od.id) as completed_date
+	from orders od
+	where od.id = idOrder;
+end
+//
+delimiter ;
+
+
+-- THIS STORED PROCEDURE IS TO FETCH DE ITEMS DETAIL NEW ORDER DATA...
+delimiter //
+create procedure items_detail_new_order(in idOrder int)
+begin
+	select id as _id, name as item_name, quantity as item_quantity from orderitems o
+	where o.order_id = idOrder;
+end
+//
+delimiter ;
