@@ -160,9 +160,10 @@ delimiter //
 create procedure open_orders(in idStore int)
 begin
 	select od.id as _id, (select os.name from orderstatuses os where os.id = od.orderstatus_id) as order_current_status,
-		od.created_at as order_creation_date, (select us.name from users us where us.id = od.user_id) as user_fullname
+		od.created_at as order_creation_date, (select us.name from users us where us.id = od.user_id) as user_fullname,
+		od.updated_at as order_acceptation_date
 	from orders od
-	where (od.orderstatus_id < 3 and od.restaurant_id = idStore)
+	where (od.orderstatus_id < 4 and od.restaurant_id = idStore)
 	order by od.id asc;
 end
 //
@@ -194,9 +195,10 @@ begin
 		(select us.name from users us where us.id = od.user_id) as user_fullname,
 		(select a.address from addresses a
 			where a.id = (select usr.default_address_id from users usr where usr.id = od.user_id)) as address_name,
-		od.created_at as order_acceptation_date, od.updated_at as order_delivery_assigned_date,
+		od.created_at as order_creation_date, od.updated_at as order_delivery_assigned_date,
 		(select ad.created_at from accept_deliveries ad where ad.order_id = od.id) as picked_up_date,
-		(select ad2.updated_at from accept_deliveries ad2 where ad2.order_id = od.id) as completed_date
+		(select ad2.updated_at from accept_deliveries ad2 where ad2.order_id = od.id) as completed_date,
+		od.restaurant_id
 	from orders od
 	where od.id = idOrder;
 end
@@ -210,6 +212,58 @@ create procedure items_detail_new_order(in idOrder int)
 begin
 	select id as _id, name as item_name, quantity as item_quantity from orderitems o
 	where o.order_id = idOrder;
+end
+//
+delimiter ;
+
+
+
+-- 																		Octubre 13, 2020
+
+-- THIS STORED PROCEDURE FETCH DELIVERY GUY DATA...
+delimiter //
+create procedure fetching_delivery_data(in idStore int)
+begin
+	select us.id as delivery_id, us.name as delivery_name
+	from users us
+	inner join restaurant_user ru on us.id = ru.user_id
+	where (us.delivery_guy_detail_id != null or us.delivery_guy_detail_id != '') and (ru.restaurant_id = idStore);
+end
+//
+delimiter ;
+
+
+-- THIS STORED PROCEDURE CHANGE THE ORDER STATUS TO ACCEPTED...
+delimiter //
+create procedure change_to_accepted(in idOrder int)
+begin
+	update orders set orderstatus_id = 2, updated_at = (select now()) where id = idOrder;
+end
+//
+delimiter ;
+
+
+-- THIS STORED PROCEDURE CHANGE THE ORDER STATUS TO DELIVERY ASSIGNED...
+delimiter //
+create procedure change_to_delivery_assigned(in idOrder int, in idUserDelivery int)
+begin
+
+	update orders set orderstatus_id = 3, updated_at = (select now()) where id = idOrder;
+
+	insert into accept_deliveries(order_id, user_id, customer_id, is_complete, created_at, updated_at)
+	values (idOrder, idUserDelivery, (select od.user_id from orders od where od.id = idOrder), 0, (select now()), null);
+end
+//
+delimiter ;
+
+
+-- THIS STORED PROCEDURE IS TO CHANGE THE STATUS TO CANCELED...
+delimiter //
+create procedure change_to_canceled(in idOrder int)
+begin
+
+	update orders set orderstatus_id = 6, updated_at = (select now()) where id = idOrder;
+
 end
 //
 delimiter ;
