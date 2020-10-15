@@ -156,30 +156,36 @@ delimiter ;
 -- 																Octubre 12, 2020
 
 -- THIS STORED PROCEDURE FETCH THE NEW AND ACCEPTED ORDERS DATA, FILTERED BY RESTAURANT ID.
+
 delimiter //
 create procedure open_orders(in idStore int)
 begin
-	select od.id as _id, (select os.name from orderstatuses os where os.id = od.orderstatus_id) as order_current_status,
-		od.created_at as order_creation_date, (select us.name from users us where us.id = od.user_id) as user_fullname,
-		od.updated_at as order_acceptation_date
+	select od.id as _id, os.name as order_current_status, us.name,
+		od.created_at as order_creation_date, od.unique_order_id,
+		od.updated_at as order_acceptation_date, r.name as restaurant_name, r.address as restaurant_address,
+		(select ac.created_at from accept_deliveries ac where ac.order_id = od.id) as delivery_assigned_date,
+		(select usd.name from users usd where usd.id = (select acd.user_id from accept_deliveries acd where acd.order_id = od.id)) as delivery_guy,
+		r.delivery_time
 	from orders od
+	inner join orderstatuses os on od.orderstatus_id  = os.id
+	inner join restaurants r on od.restaurant_id = r.id
+	inner join users us on od.user_id = us.id
 	where (od.orderstatus_id < 4 and od.restaurant_id = idStore)
 	order by od.id asc;
 end
 //
 delimiter ;
 
-
 -- THIS STORED PROCEDURE FETCH THE RECORD ORDERS DATA, FILTERED BY RESTAURANT ID.
 delimiter //
 create procedure record_orders(in idStore int)
 begin
 	select * from (select od.id as _id, (select os.name from orderstatuses os where os.id = od.orderstatus_id) as order_current_status,
-		od.updated_at as order_delivery_assigned_date, (select us.name from users us where us.id = od.user_id) as user_fullname,
+		od.updated_at as order_delivery_assigned_date, od.unique_order_id ,
 		(select ad.created_at from accept_deliveries ad where ad.order_id = od.id) as picked_up_date,
 		(select ad2.updated_at from accept_deliveries ad2 where ad2.order_id = od.id) as completed_date
 	from orders od
-	where (od.orderstatus_id > 2 and od.orderstatus_id < 6) and (od.restaurant_id = idStore)
+	where (od.orderstatus_id > 3 and od.orderstatus_id < 6) and (od.restaurant_id = idStore)
 	order by od.id desc
 	limit 25) as allData order by allData._id asc;
 end
@@ -210,7 +216,7 @@ delimiter ;
 delimiter //
 create procedure items_detail_new_order(in idOrder int)
 begin
-	select id as _id, name as item_name, quantity as item_quantity from orderitems o
+	select id as _id, name as item_name, quantity as item_quantity, price as item_price from orderitems o
 	where o.order_id = idOrder;
 end
 //
@@ -264,6 +270,38 @@ begin
 
 	update orders set orderstatus_id = 6, updated_at = (select now()) where id = idOrder;
 
+end
+//
+delimiter ;
+
+
+
+
+
+
+-- 																												Octubre 15, 2020
+
+
+-- THIS STORED PROCEDURE CHANGES DE ORDER HEADER STATUS FROM ACCEPTED TO DELIVERY ASSIGNED...
+delimiter //
+create procedure change_from_accepted_to_delivery_assigned(in idOrder int, in idUserDelivery int)
+begin
+
+	update orders set orderstatus_id = 3 where id = idOrder;
+
+	insert into accept_deliveries(order_id, user_id, customer_id, is_complete, created_at, updated_at)
+	values (idOrder, idUserDelivery, (select od.user_id from orders od where od.id = idOrder), 0, (select now()), null);
+end
+//
+delimiter ;
+
+
+
+-- THIS STORED PROCEDURE FETCH THE ADDONS DATA FOR EACH ITEM...
+delimiter //
+create procedure fetch_detail_addons_items(in idOrderItem int)
+begin
+	select id as _id, addon_name, addon_category_name, addon_price from order_item_addons where orderitem_id = idOrderItem;
 end
 //
 delimiter ;
