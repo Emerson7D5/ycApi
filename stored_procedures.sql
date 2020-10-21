@@ -181,10 +181,12 @@ delimiter //
 create procedure record_orders(in idStore int)
 begin
 	select * from (select od.id as _id, (select os.name from orderstatuses os where os.id = od.orderstatus_id) as order_current_status,
-		od.updated_at as order_delivery_assigned_date, od.unique_order_id ,
+		od.updated_at as order_delivery_assigned_date, od.unique_order_id , us.name,
 		(select ad.created_at from accept_deliveries ad where ad.order_id = od.id) as picked_up_date,
-		(select ad2.updated_at from accept_deliveries ad2 where ad2.order_id = od.id) as completed_date
+		(select ad2.updated_at from accept_deliveries ad2 where ad2.order_id = od.id) as completed_date,
+		od.total as total_order
 	from orders od
+	inner join users us on od.user_id = us.id
 	where (od.orderstatus_id > 3 and od.orderstatus_id < 6) and (od.restaurant_id = idStore)
 	order by od.id desc
 	limit 25) as allData order by allData._id asc;
@@ -201,11 +203,33 @@ begin
 		(select us.name from users us where us.id = od.user_id) as user_fullname,
 		(select a.address from addresses a
 			where a.id = (select usr.default_address_id from users usr where usr.id = od.user_id)) as address_name,
-		od.created_at as order_creation_date, od.updated_at as order_delivery_assigned_date,
-		(select ad.created_at from accept_deliveries ad where ad.order_id = od.id) as picked_up_date,
-		(select ad2.updated_at from accept_deliveries ad2 where ad2.order_id = od.id) as completed_date,
+		od.created_at as order_creation_date, od.updated_at as order_accepted_date,
+		(select ad.created_at from accept_deliveries ad where ad.order_id = od.id) as delivery_dessigned_date,
+		(select ad2.updated_at from accept_deliveries ad2 where ad2.order_id = od.id) as last_date,
+		(select uss.name from users uss where uss.id = (select ad3.user_id from accept_deliveries ad3 where ad3.order_id = od.id)) as delivery_guy,
 		od.restaurant_id
 	from orders od
+	where od.id = idOrder;
+end
+//
+delimiter ;
+
+
+-- THIS STORED PROCEDURE IS TO FETCH THE DETAIL OF AN ORDER, NOT NEW...
+delimiter //
+create procedure detail_order(in idOrder int)
+begin
+	select od.id as _id, od.unique_order_id as order_code,
+		(select us.name from users us where us.id = od.user_id) as user_fullname,
+		(select a.address from addresses a
+			where a.id = (select usr.default_address_id from users usr where usr.id = od.user_id)) as address_name,
+		od.created_at as order_creation_date, od.updated_at as order_accepted_date,
+		(select ad.created_at from accept_deliveries ad where ad.order_id = od.id) as delivery_assigned_date,
+		(select ad2.updated_at from accept_deliveries ad2 where ad2.order_id = od.id) as last_date,
+		(select uss.name from users uss where uss.id = (select ad3.user_id from accept_deliveries ad3 where ad3.order_id = od.id)) as delivery_guy,
+		od.restaurant_id, od.total as total_order, ost.name as current_status
+	from orders od
+	inner join orderstatuses ost on od.orderstatus_id = ost.id
 	where od.id = idOrder;
 end
 //
@@ -302,6 +326,63 @@ delimiter //
 create procedure fetch_detail_addons_items(in idOrderItem int)
 begin
 	select id as _id, addon_name, addon_category_name, addon_price from order_item_addons where orderitem_id = idOrderItem;
+end
+//
+delimiter ;
+
+
+
+--																								Octubre 16, 2020
+
+-- THIS STORED PROCEDURE IS TO VERIFY IF THE USER EXIST AND RETURNS THE HASH OF THE PASSWORD...
+delimiter //
+create procedure verifying_user(in email_user varchar(191))
+begin
+	select count(us.id) as counting, us.id, us.name, us.avatar, us.password as content,
+		(select count(*) from restaurant_user ru where ru.user_id = us.id) as number_of_restaurants
+	from users us where email = BINARY email_user limit 1;
+end
+//
+delimiter ;
+
+
+-- THIS STORED PROCEDURE FETCH ALL THE RESTAURANTS FILTER BY USERS...
+delimiter //
+create procedure all_stores_by_user(in idUser int)
+begin
+	select rt.id as restaurant_id, rt.name as restaurant_name, rt.description as restaurant_description, rt.image as restaurant_img, rt.rating as restaurant_rating,
+	rt.address as restaurant_address, rt.delivery_time
+	from restaurant_user ru
+	inner join restaurants rt on ru.restaurant_id = rt.id
+	where ru.user_id = idUser;
+end
+//
+delimiter ;
+
+
+-- 																						Octubre 21, 2020
+
+
+-- THIS STORED PROCEDURE FETCH THE ITEMS BY RESTAURANT...
+delimiter //
+create procedure items_by_restaurant(in idStore int)
+begin
+	select * from (select it.id as item_id, it.name as item_name, it.price as item_price, it.image as item_image, it.is_active as item_is_active,
+	ic.name as category_name
+	from items it
+	inner join item_categories ic on it.item_category_id = ic.id
+	where it.restaurant_id = idStore order by it.item_category_id asc) as all_items
+	order by all_items.category_name asc;
+end
+//
+delimiter ;
+
+
+-- THIS STORED PROCEDURE FETCH THE ITEMS CATEGORIES...
+delimiter //
+create procedure item_categories()
+begin
+	select id, name from item_categories ic ;
 end
 //
 delimiter ;
